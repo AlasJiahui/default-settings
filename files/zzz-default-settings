@@ -1,98 +1,70 @@
 #!/bin/sh
 
+# OpenWrt 25.12 兼容优化脚本
+# 语言、主题配置
 uci -q batch <<-EOF
-
 uci set luci.main.lang=zh_cn
-#设置默认主题
 uci set luci.main.mediaurlbase=/luci-static/bootstrap
 uci commit luci
 
-	set system.@system[0].timezone='CST-8'
-	set system.@system[0].zonename='Asia/Shanghai'
+# 时区 + NTP 服务器
+set system.@system[0].timezone='CST-8'
+set system.@system[0].zonename='Asia/Shanghai'
 
-	delete system.ntp.server
-	add_list system.ntp.server='ntp1.aliyun.com'
-	add_list system.ntp.server='ntp.tencent.com'
-	add_list system.ntp.server='ntp.ntsc.ac.cn'
-	add_list system.ntp.server='time.apple.com'
+delete system.ntp.server
+add_list system.ntp.server='ntp1.aliyun.com'
+add_list system.ntp.server='ntp.tencent.com'
+add_list system.ntp.server='ntp.ntsc.ac.cn'
+add_list system.ntp.server='time.apple.com'
 EOF
 uci commit system
 
+# 自动挂载
 uci set fstab.@global[0].anon_mount=1
 uci commit fstab
 
+# ip 命令软链接（兼容旧脚本调用）
 ln -sf /sbin/ip /usr/bin/ip
 
+# 清理多余软件源，保留官方源
 sed -i '/small/d' /etc/opkg/distfeeds.conf
 sed -i '/other/d' /etc/opkg/distfeeds.conf
 sed -i '/smpackage/d' /etc/opkg/distfeeds.conf
 sed -i '/kenzok8/d' /etc/opkg/distfeeds.conf
-#sed -i 's/downloads.openwrt.org/openwrt.proxy.ustclug.org/g' /etc/opkg/distfeeds.conf
-#sed -i 's/http/https/g' /etc/opkg/distfeeds.conf
 sed -i "s/# //g" /etc/opkg/distfeeds.conf
 
-#sed -i 's/root::0:0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
-#sed -i 's/root:::0:99999:7:::/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
-
+# DHCPv6 服务配置（OpenWrt 25.12 标准）
+uci -q batch <<-EOF
 uci set dhcp.lan.ra='server'
-#uci set dhcp.lan.dhcpv6='server'
 uci set dhcp.lan.ra_management='1'
 uci set dhcp.lan.ra_default='1'
-#uci set dhcp.@dnsmasq[0].localservice=0
-#uci set dhcp.@dnsmasq[0].nonwildcard=0
+EOF
 uci commit dhcp
 
+# LAN 地址修改
 uci set network.lan.ipaddr='10.0.0.2'
-#uci set network.lan.netmask='255.255.255.0'
-#uci set network.lan.ip6assign='64'
 uci commit network
 
+# 启用无线（修复 25.12 无线禁用规则）
 sed -i '/option disabled/d' /etc/config/wireless
-sed -i '/set wireless.radio${devidx}.disabled/d' /lib/wifi/mac80211.sh
+[ -f /lib/wifi/mac80211.sh ] && sed -i '/set wireless.radio\${devidx}.disabled/d' /lib/wifi/mac80211.sh
 wifi up
 
-#sed -i '/DISTRIB_DESCRIPTION/d' /etc/openwrt_release
-#echo "DISTRIB_DESCRIPTION='OpenWrt SNAPSHOT'" >> /etc/openwrt_release
+# ==================== OpenWrt 25.12 路径修复 ====================
+# 新版 LuCI3 使用 JS 前端，Lua 路径已废弃，统一适配新路径
+# 删除状态页无用模块
+rm -rf /usr/lib/lua/luci/view/admin_status/index 2>/dev/null
+rm -f /usr/lib/lua/luci/view/admin_status/index/mwan.htm 2>/dev/null
+rm -f /usr/lib/lua/luci/view/admin_status/index/minidlna.htm 2>/dev/null
 
-# 删除状态页不需显示的
-rm -rf /usr/lib/lua/luci/view/admin_status/index
-#mv -f /usr/lib/lua/luci/view/admin_status/index /usr/lib/lua/luci/view/admin_status/index_backup 2>/dev/null
-rm -f /usr/lib/lua/luci/view/admin_status/index/mwan.htm
-#rm -f /usr/lib/lua/luci/view/admin_status/index/upnp.htm
-#rm -f /usr/lib/lua/luci/view/admin_status/index/ddns.htm
-rm -f /usr/lib/lua/luci/view/admin_status/index/minidlna.htm
+# 新版 JS 状态页路径
+rm -f /www/luci-static/resources/view/status/include/70_ddns.js 2>/dev/null
+rm -f /www/luci-static/resources/view/status/include/80_upnp.js 2>/dev/null
 
-rm -f /www/luci-static/resources/view/status/include/70_ddns.js
-rm -f /www/luci-static/resources/view/status/include/80_upnp.js
-
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/aria2.lua
-#sed -i 's/services/nas/g' /usr/lib/lua/luci/view/aria2/overview_status.htm
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/hd_idle.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/samba.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/samba4.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/minidlna.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/transmission.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/mjpg-streamer.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/p910nd.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/usb_printer.lua
-#sed -i 's/\"services\"/\"nas\"/g' /usr/lib/lua/luci/controller/xunlei.lua
-#sed -i 's/services/nas/g'  /usr/lib/lua/luci/view/minidlna_status.htm
-
-#禁用某些可能会自启动且用不上的依赖包服务
-#/etc/init.d/php7-fastcgi disable 2>/dev/null
-#/etc/init.d/php7-fpm disable 2>/dev/null
-#/etc/init.d/php8-fastcgi disable 2>/dev/null
-#/etc/init.d/php8-fpm disable 2>/dev/null
-#/etc/init.d/softethervpnbridge disable 2>/dev/null
-#/etc/init.d/softethervpnserver disable 2>/dev/null
-#/etc/init.d/softethervpnclient disable 2>/dev/null
-#/etc/init.d/haproxy disable 2>/dev/null
-#/etc/init.d/kcptun disable 2>/dev/null
-
+# 禁用 opkg 签名校验（兼容官方源）
 sed -i '/check_signature/d' /etc/opkg.conf
 
-#chmod 0755 /etc/init.d/*
-
-#rm -rf /tmp/luci-*cache
+# 清理 LuCI 缓存
+rm -rf /tmp/luci-*cache 2>/dev/null
 
 exit 0
