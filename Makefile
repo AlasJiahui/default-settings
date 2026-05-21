@@ -1,49 +1,52 @@
-# Copyright (C) 2016-2023 GitHub
-# Updated for OpenWrt 25.12
 #
-# This is free software, licensed under the GNU General Public License v3.
+# Copyright (C) 2010-2011 OpenWrt.org
+#
+# This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
+#
 
 include $(TOPDIR)/rules.mk
+include $(INCLUDE_DIR)/kernel.mk
 
-PKG_NAME:=default-settings
-PKG_RELEASE:=$(COMMITCOUNT)
-PKG_LICENSE:=GPLv3
-PKG_LICENSE_FILES:=LICENSE
-
-# 更新依赖
-PKG_BUILD_DEPENDS:=luci-base/host
+PKG_NAME:=my-default-settings
+PKG_VERSION:=2
+PKG_RELEASE:=6
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/default-settings
+define Package/$(PKG_NAME)
   SECTION:=luci
   CATEGORY:=LuCI
-  TITLE:=LuCI support for Default Settings
+  TITLE:=Default Settings
+  MAINTAINER:=Kiddin'
   PKGARCH:=all
-  DEPENDS:= +luci-base +@LUCI_LANG_zh-cn +@LUCI_LANG_zh_Hans +@LUCI_LANG_en
+  DEPENDS:=+luci-base
 endef
 
-define Package/default-settings/description
-	Language Support Packages and default settings.
+define Package/$(PKG_NAME)/conffiles
+/etc/config/
+/etc/nginx/
+endef
+
+define Build/Prepare
+	chmod -R +x ./files/bin ./files/sbin ./files/etc/profile.d ./files/etc/rc.d ./files/usr/share diy/*/{*,}/base-files/{etc/init.d,usr/bin} >/dev/null || true
 endef
 
 define Build/Compile
-	# 确保 po2lmo 工具可用
-	$(call Build/Compile/Default)
-	$(STAGING_DIR_HOST)/bin/po2lmo ./po/zh-cn/default.po $(PKG_BUILD_DIR)/default.zh-cn.lmo
 endef
 
-define Package/default-settings/install
-	$(INSTALL_DIR) $(1)/etc/uci-defaults
-	$(INSTALL_BIN) ./files/zzz-default-settings $(1)/etc/uci-defaults/99-default-settings
-
+define Package/$(PKG_NAME)/install
+	$(CP) ./files/* $(1)/
+	echo $(BOARD)$(TARGETID)
+	if [ -d ./diy/$(BOARD)/base-files/. ]; then \
+		$(CP) ./diy/$(BOARD)/base-files/* $(1)/; \
+	fi
+	if [ -d ./diy/$(TARGETID)/base-files/. ]; then \
+		$(CP) ./diy/$(TARGETID)/base-files/* $(1)/; \
+	fi; \
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/i18n
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/default.zh-cn.lmo $(1)/usr/lib/lua/luci/i18n/default.zh-cn.lmo
+	po2lmo ./po/zh_Hans/default.po $(1)/usr/lib/lua/luci/i18n/default.zh-cn.lmo
 
-	# 添加版本标记文件（可选）
-	$(INSTALL_DIR) $(1)/etc/openwrt_release
-	echo "default-settings-$(PKG_VERSION)-$(PKG_RELEASE)" > $(1)/etc/openwrt_release/default_settings_version
 endef
 
-$(eval $(call BuildPackage,default-settings))
+$(eval $(call BuildPackage,$(PKG_NAME)))
