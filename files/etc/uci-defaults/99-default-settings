@@ -11,9 +11,6 @@ sed -i "s/op.supes.top/dl.openwrt.ai/" /etc/opkg/distfeeds.conf
 
 version=$(uci -q get base_config.@status[0].version)
 
-hostname=$(uci -q get system.@system[0].hostname)
-[ -n "${hostname}" ] || hostname="Kwrt"
-
 if [ "$(uci -q get dhcp.@dnsmasq[0].port)" != "53" ]; then
 	uci -q set dhcp.@dnsmasq[0].port='53'
 	uci commit dhcp
@@ -42,11 +39,6 @@ if [ -f /etc/uwsgi/vassals/luci-webui.ini ]; then
 	sed -i "/^threads =/c\threads = $processor" /etc/uwsgi/vassals/luci-webui.ini
 fi
 
-if [ -f /etc/config/attendedsysupgrade ]; then
-	uci -q set attendedsysupgrade.server.url='https://openwrt.ai'
-	uci commit attendedsysupgrade
-fi
-
 if [ -z "$version" ] || [ "$version" -lt 1 ]; then
 	uci -q set luci.main.lang='auto'
 	uci -q set luci.main.mediaurlbase=/luci-static/argon
@@ -58,14 +50,10 @@ if [ -z "$version" ] || [ "$version" -lt 1 ]; then
 		uci -q set system.@system[0].conloglevel='4'
 		uci -q set system.@system[0].cronloglevel='8'
 		uci -q set system.@system[0].ttylogin='1'
-		uci -q del system.ntp.server
-		uci -q add_list system.ntp.server='ntp.aliyun.com'
-		uci -q add_list system.ntp.server='0.openwrt.pool.ntp.org'
 		uci commit system
 	fi
 
 	uci -q set uhttpd.main.rfc1918_filter=0
-	uci -q set uhttpd.main.redirect_https=0
 	uci -q set uhttpd.main.script_timeout='120'
 	uci commit uhttpd
 	
@@ -167,39 +155,9 @@ if [ -z "$version" ] || [ "$version" -lt 1 ]; then
 	echo "net.nf_conntrack_max=$nf_conntrack_max" >> "$SYSCTL_LOCAL"
 	echo "net.core.rmem_max=$nf_conntrack_max" >> "$SYSCTL_LOCAL"
 
-	if [ -n "$(command -v nginx)" ]; then
-		uci add wizard shortcuts
-		uci set wizard.@shortcuts[-1].shortcut='pw'
-		uci set wizard.@shortcuts[-1].to_url='http://10.0.0.1/cgi-bin/luci/admin/services/passwall'
-		uci set wizard.@shortcuts[-1].comments='passwall'
-		uci commit wizard
-
-		uci -q set nginx._sc_pw=server
-		uci -q set nginx._sc_pw.server_name="pw"
-		uci -q add_list nginx._sc_pw.listen="80"
-		uci -q add_list nginx._sc_pw.listen="443"
-		uci -q set nginx._sc_pw.return="302 http://10.0.0.1/cgi-bin/luci/admin/services/passwall"
-
-		uci -q set dhcp._sc_pw=domain
-		uci -q set dhcp._sc_pw.name="pw"
-		uci -q set dhcp._sc_pw.ip="10.0.0.1"
-		uci -q set dhcp._sc_pw.comments="PassWall"
-		uci commit dhcp
-	fi
 	
-	if [ -z "$(uci -q get dhcp._ta)" ]; then
-		uci -q set dhcp._ta=domain
-		uci -q set dhcp._ta.name="time.android.com"
-		uci -q set dhcp._ta.ip="203.107.6.88"
-		uci -q set dhcp._ta.comments="time.android"
-		uci commit dhcp
-	fi
-	version=1
-fi
 
 if [ -z "$(uci -q get dhcp.default_server)" ]; then
-	uci -q set dhcp.default_server=domain
-	uci -q set dhcp.default_server.name='kwrt'
 	uci -q set dhcp.default_server.ip='10.0.0.1'
 	uci -q set dhcp.default_server.comments='后台地址'
 	uci commit dhcp
@@ -208,7 +166,7 @@ fi
 if [ -n "$(command -v nginx)" ]; then
 	if [ -z "$(uci -q get nginx.default_server)" ]; then
 		uci -q set nginx.default_server=server
-		uci -q set nginx.default_server.server_name='kwrt'
+		uci -q set nginx.default_server.server_name='openwrt'
 		uci -q add_list nginx.default_server.listen='80 default_server'
 		uci -q add_list nginx.default_server.listen='[::]:80 default_server'
 		uci -q add_list nginx.default_server.include='conf.d/*.locations'
